@@ -79,9 +79,9 @@ class Store:
             status = "passed"
 
         if passed + failed == 0:
-            pass_rate = passed / (passed + failed)
+            pass_rate = 0.0
         else:
-            pass_rate = passed / len(results)
+            pass_rate = passed / (passed + failed)
 
         return {
             "id": run["id"],
