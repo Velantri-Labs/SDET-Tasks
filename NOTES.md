@@ -23,3 +23,18 @@
 - Add a real fix for the `duration_ms: true/false` issue — since Pydantic coerces booleans to ints before the store ever sees them, the check needs to move up to a field validator on `ResultBody` that inspects the raw value, not `isinstance` inside the store.
 - Add the missing 404 handling to `store.summary()` (raise `KeyError` like the other two methods do, and let `api.py` catch it the same way `add_result` does) instead of returning a placeholder dict.
 - Property-based tests (e.g. with Hypothesis) for the trimming/length/uniqueness rules once they're implemented, since those are exactly the kind of boundary-heavy logic that benefits from generated edge cases.
+
+## What I fixed after review
+
+All bugs in `BUGS.md` are now fixed, using the tests already in `tests/` as the checklist. `pytest` is green (45 passed).
+
+- `store.create_run`: trims `name` and each test name, enforces 1-40 / 1-20 / 1-60 length and count rules, and rejects duplicate test names on the trimmed values. Stores and returns the trimmed values.
+- `store.add_result`: trims `test` before matching, trims and lowercases `status` before the allow-list check and stores the normalized value, rejects a second result for the same test, and rejects `duration_ms < 0`.
+- `ResultBody` in `api.py` now has a `field_validator(mode="before")` on `duration_ms` that rejects `bool` on the raw JSON value, before Pydantic coerces `true`/`false` into `1`/`0`. The old `isinstance(duration_ms, bool)` check in the store never fired for that reason and is left in place as a defensive check for any caller that bypasses the API model.
+- `store.summary`: raises `KeyError` for an unknown run id instead of returning a placeholder dict, matching `create_run`/`add_result`. `api.get_summary` catches it and returns `404`, same pattern as `add_result`.
+- `store.summary`: dropped the `elif passed:` branch that marked a run `"passed"` the moment any single test passed. Status is now `"passed"` only when every test has a result and none is `"fail"`.
+
+## What I would do with more time
+
+- Property-based tests (e.g. with Hypothesis) for the trimming/length/uniqueness rules, since those are exactly the kind of boundary-heavy logic that benefits from generated edge cases.
+- A test for the "apply these rules in order" clause on run creation — a payload that fails two rules at once, to confirm the first rule in the contract's list is the one that produces the `400`.
