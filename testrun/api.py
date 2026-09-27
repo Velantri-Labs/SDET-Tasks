@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from testrun.store import store
 
@@ -17,6 +17,17 @@ class ResultBody(BaseModel):
     test: str
     status: str
     duration_ms: int
+
+    @field_validator("duration_ms", mode="before")
+    @classmethod
+    def reject_bool_duration(cls, value):
+        # Runs before Pydantic coerces the raw JSON value into `int`.
+        # By the time an `int` field sees the value, `true`/`false` has
+        # already become `1`/`0`, so this has to happen here, not as an
+        # isinstance check further down in the store.
+        if isinstance(value, bool):
+            raise ValueError("duration_ms must be an integer, not a boolean")
+        return value
 
 
 @app.exception_handler(RequestValidationError)
@@ -49,4 +60,7 @@ def add_result(run_id: int, body: ResultBody):
 
 @app.get("/api/runs/{run_id}/summary")
 def get_summary(run_id: int):
-    return store.summary(run_id)
+    try:
+        return store.summary(run_id)
+    except KeyError:
+        return JSONResponse(status_code=404, content={"error": "run not found"})
