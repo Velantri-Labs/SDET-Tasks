@@ -1,11 +1,15 @@
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, field_validator
 
 from testrun.store import store
 
 app = FastAPI(title="Test Run API")
+
+_CONSOLE_HTML = (Path(__file__).parent / "console.html").read_text()
 
 
 class CreateRunBody(BaseModel):
@@ -64,3 +68,13 @@ def get_summary(run_id: int):
         return store.summary(run_id)
     except KeyError:
         return JSONResponse(status_code=404, content={"error": "run not found"})
+
+
+@app.get("/api/runs")
+def list_runs():
+    return store.list_runs()
+
+
+@app.get("/", response_class=HTMLResponse)
+def console():
+    return _CONSOLE_HTML
