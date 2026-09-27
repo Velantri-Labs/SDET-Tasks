@@ -67,29 +67,39 @@ class Store:
             "duration_ms": duration_ms,
         }
 
+    @staticmethod
+    def _counts(run: dict) -> tuple[int, int, int]:
+        results = run["results"]
+        passed = sum(1 for item in results.values() if item["status"] == "pass")
+        failed = sum(1 for item in results.values() if item["status"] == "fail")
+        skipped = sum(1 for item in results.values() if item["status"] == "skip")
+        return passed, failed, skipped
+
+    @staticmethod
+    def _status(run: dict, failed: int) -> str:
+        results = run["results"]
+        if not results:
+            return "queued"
+        if failed:
+            return "failed"
+        if len(results) < len(run["tests"]):
+            return "running"
+        return "passed"
+
+    @staticmethod
+    def _pass_rate(passed: int, failed: int) -> float:
+        if passed + failed == 0:
+            return 0.0
+        return passed / (passed + failed)
+
     def summary(self, run_id: int) -> dict:
         run = self._runs.get(run_id)
         if run is None:
             raise KeyError("run not found")
 
-        results = run["results"]
-        passed = sum(1 for item in results.values() if item["status"] == "pass")
-        failed = sum(1 for item in results.values() if item["status"] == "fail")
-        skipped = sum(1 for item in results.values() if item["status"] == "skip")
-
-        if not results:
-            status = "queued"
-        elif failed:
-            status = "failed"
-        elif len(results) < len(run["tests"]):
-            status = "running"
-        else:
-            status = "passed"
-
-        if passed + failed == 0:
-            pass_rate = 0.0
-        else:
-            pass_rate = passed / (passed + failed)
+        passed, failed, skipped = self._counts(run)
+        status = self._status(run, failed)
+        pass_rate = self._pass_rate(passed, failed)
 
         return {
             "id": run["id"],
@@ -100,8 +110,23 @@ class Store:
             "failed": failed,
             "skipped": skipped,
             "pass_rate": pass_rate,
-            "duration_ms": sum(item["duration_ms"] for item in results.values()),
+            "duration_ms": sum(item["duration_ms"] for item in run["results"].values()),
         }
+
+    def list_runs(self) -> list[dict]:
+        rows = []
+        for run in self._runs.values():
+            passed, failed, _skipped = self._counts(run)
+            rows.append({
+                "id": run["id"],
+                "name": run["name"],
+                "status": self._status(run, failed),
+                "total": len(run["tests"]),
+                "pass_rate": self._pass_rate(passed, failed),
+                "tests": list(run["tests"]),
+            })
+        rows.sort(key=lambda row: row["id"], reverse=True)
+        return rows
 
 
 store = Store()
