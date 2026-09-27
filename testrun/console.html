@@ -1,0 +1,714 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Test Run Console</title>
+<style>
+  :root {
+    --bg: #0b0d10;
+    --surface: #14171b;
+    --surface-active: #1a1e23;
+    --border: #262b31;
+    --text-primary: #e8eaed;
+    --text-muted: #8b939d;
+    --accent: #4da3ff;
+    --status-queued: #4da3ff;
+    --status-running: #e0a53d;
+    --status-passed: #3dd68c;
+    --status-failed: #e35d5d;
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 24px;
+    --space-6: 32px;
+    --space-7: 48px;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  header {
+    padding: var(--space-5) var(--space-6) var(--space-4);
+    border-bottom: 1px solid var(--border);
+  }
+
+  header h1 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  main {
+    padding: var(--space-6);
+    display: grid;
+    gap: var(--space-6);
+    grid-template-columns: 320px 1fr;
+    grid-template-areas:
+      "list record"
+      "create summary";
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  @media (max-width: 720px) {
+    main {
+      grid-template-columns: 1fr;
+      grid-template-areas:
+        "summary"
+        "record"
+        "create"
+        "list";
+      padding: var(--space-4);
+      gap: var(--space-5);
+    }
+  }
+
+  .panel-list { grid-area: list; }
+  .panel-create { grid-area: create; }
+  .panel-record { grid-area: record; }
+  .panel-summary { grid-area: summary; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: var(--space-5);
+  }
+
+  .card h2 {
+    margin: 0 0 var(--space-4);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  /* Field */
+  label {
+    display: block;
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: var(--space-1);
+  }
+
+  input, select {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    border-radius: 6px;
+    padding: var(--space-2) var(--space-3);
+    font-size: 15px;
+    font-family: var(--sans);
+    margin-bottom: var(--space-3);
+  }
+
+  input:focus, select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  input.field-error, select.field-error {
+    border-color: var(--status-failed);
+  }
+
+  .field-error-text {
+    color: var(--status-failed);
+    font-size: 13px;
+    margin: calc(-1 * var(--space-2)) 0 var(--space-3);
+  }
+
+  .test-row {
+    display: flex;
+    gap: var(--space-2);
+    align-items: flex-start;
+  }
+  .test-row input { flex: 1; }
+  .test-row button { flex: none; }
+
+  /* Button */
+  button {
+    font-family: var(--sans);
+    font-size: 15px;
+    border-radius: 6px;
+    padding: var(--space-2) var(--space-4);
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+
+  button.primary {
+    background: var(--accent);
+    color: #04101f;
+    font-weight: 600;
+  }
+
+  button.primary:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+
+  button.secondary {
+    background: transparent;
+    border-color: var(--border);
+    color: var(--text-primary);
+  }
+
+  button.icon {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: var(--space-1) var(--space-2);
+  }
+
+  /* Error banner */
+  .banner {
+    border-radius: 6px;
+    padding: var(--space-3) var(--space-4);
+    margin-bottom: var(--space-4);
+    font-size: 14px;
+  }
+  .banner.err-400 {
+    background: rgba(227, 93, 93, 0.12);
+    border: 1px solid var(--status-failed);
+    color: #ffb3b3;
+  }
+  .banner.err-500 {
+    background: rgba(227, 93, 93, 0.12);
+    border: 1px solid var(--status-failed);
+    color: #ffb3b3;
+  }
+
+  /* Status pill */
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: 2px var(--space-2);
+    border-radius: 999px;
+    font-size: 13px;
+    background: var(--surface);
+  }
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+  .status-queued .status-dot { background: var(--status-queued); }
+  .status-queued { color: var(--status-queued); }
+  .status-running .status-dot {
+    background: var(--status-running);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  .status-running { color: var(--status-running); }
+  .status-passed .status-dot { background: var(--status-passed); }
+  .status-passed { color: var(--status-passed); }
+  .status-failed .status-dot { background: var(--status-failed); }
+  .status-failed { color: var(--status-failed); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .status-running .status-dot { animation: none; }
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* List row */
+  .run-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-2);
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    border-left: 3px solid transparent;
+  }
+  .run-row:last-child { border-bottom: none; }
+  .run-row:hover { background: var(--surface-active); }
+  .run-row.selected {
+    border-left-color: var(--accent);
+    background: var(--surface-active);
+  }
+  .run-row .name { font-size: 15px; }
+  .run-row .meta {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .empty-note {
+    color: var(--text-muted);
+    font-size: 14px;
+  }
+  .skeleton-row {
+    height: 20px;
+    border-radius: 4px;
+    background: var(--surface-active);
+    margin-bottom: var(--space-2);
+  }
+
+  /* Summary */
+  .summary-status {
+    font-size: 32px;
+    font-family: var(--mono);
+    font-weight: 600;
+    margin-bottom: var(--space-4);
+  }
+  .summary-counts {
+    display: flex;
+    gap: var(--space-6);
+    margin-bottom: var(--space-4);
+  }
+  .summary-counts div { text-align: left; }
+  .summary-counts .n {
+    font-family: var(--mono);
+    font-size: 20px;
+    display: block;
+  }
+  .summary-counts .l {
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+  .pass-rate-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+  }
+  .pass-rate-value {
+    font-family: var(--mono);
+    font-size: 15px;
+    width: 48px;
+  }
+  .pass-rate-bar {
+    flex: 1;
+    height: 8px;
+    border-radius: 4px;
+    background: var(--surface-active);
+    overflow: hidden;
+  }
+  .pass-rate-fill {
+    height: 100%;
+    background: var(--status-passed);
+  }
+  .summary-duration {
+    font-family: var(--mono);
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+  .not-found-panel {
+    text-align: center;
+    padding: var(--space-6) 0;
+  }
+  .not-found-panel p { color: var(--text-muted); }
+  .placeholder-note {
+    color: var(--text-muted);
+    font-size: 14px;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Test Run Console</h1>
+</header>
+<main>
+
+  <section class="panel-summary card">
+    <h2>Summary</h2>
+    <div id="summary-body">
+      <p class="placeholder-note">Select or create a run to see its summary.</p>
+    </div>
+  </section>
+
+  <section class="panel-record card">
+    <h2>Record a result</h2>
+    <div id="record-body">
+      <p class="placeholder-note">Select or create a run first.</p>
+    </div>
+  </section>
+
+  <section class="panel-create card">
+    <h2>Create a run</h2>
+    <div id="create-banner"></div>
+    <form id="create-form">
+      <label for="run-name">Run name</label>
+      <input id="run-name" name="name" autocomplete="off" />
+      <div id="name-error" class="field-error-text" hidden></div>
+
+      <label>Tests</label>
+      <div id="test-rows"></div>
+      <button type="button" id="add-test" class="secondary" style="margin-bottom: var(--space-3);">+ Add test</button>
+
+      <button type="submit" class="primary" id="create-submit">Create run</button>
+    </form>
+  </section>
+
+  <section class="panel-list card">
+    <h2>Runs</h2>
+    <div id="run-list"></div>
+  </section>
+
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  const state = {
+    runs: [],
+    runsLoaded: false,
+    selectedRunId: null,
+    selectedRun: null,      // full row from GET /api/runs (has `tests`)
+    summary: null,
+    summaryNotFound: false,
+    knownResulted: {},      // { [runId]: Set(testName) } — recorded this session
+  };
+
+  function el(html) {
+    const t = document.createElement("template");
+    t.innerHTML = html.trim();
+    return t.content.firstChild;
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  }
+
+  async function api(path, options) {
+    const res = await fetch(path, options);
+    let body = null;
+    try { body = await res.json(); } catch (e) { /* no body */ }
+    return { status: res.status, body };
+  }
+
+  // ---------- Run list ----------
+
+  async function loadRuns() {
+    const { status, body } = await api("/api/runs");
+    if (status === 200) {
+      state.runs = body;
+      state.runsLoaded = true;
+      renderRunList();
+    }
+  }
+
+  function renderRunList() {
+    const container = document.getElementById("run-list");
+    container.innerHTML = "";
+
+    if (!state.runsLoaded) {
+      for (let i = 0; i < 3; i++) {
+        container.appendChild(el(`<div class="skeleton-row"></div>`));
+      }
+      return;
+    }
+
+    if (state.runs.length === 0) {
+      container.appendChild(el(`<p class="empty-note">No runs yet — create one to get started.</p>`));
+      return;
+    }
+
+    state.runs.forEach((run) => {
+      const row = el(`
+        <div class="run-row ${run.id === state.selectedRunId ? "selected" : ""}" data-id="${run.id}">
+          <div>
+            <div class="name">${escapeHtml(run.name)}</div>
+            <span class="status-pill status-${run.status}">
+              <span class="status-dot"></span>${run.status}
+            </span>
+          </div>
+          <div class="meta">${(run.pass_rate * 100).toFixed(0)}%</div>
+        </div>
+      `);
+      row.addEventListener("click", () => selectRun(run.id));
+      container.appendChild(row);
+    });
+  }
+
+  async function selectRun(runId) {
+    state.selectedRunId = runId;
+    state.selectedRun = state.runs.find((r) => r.id === runId) || null;
+    state.summaryNotFound = false;
+    renderRunList();
+    renderRecordForm();
+    await loadSummary();
+  }
+
+  // ---------- Create run ----------
+
+  function addTestRow(value) {
+    const rows = document.getElementById("test-rows");
+    const row = el(`
+      <div class="test-row">
+        <input type="text" class="test-input" autocomplete="off" value="${value ? escapeHtml(value) : ""}" />
+        <button type="button" class="icon remove-test">&times;</button>
+      </div>
+    `);
+    row.querySelector(".remove-test").addEventListener("click", () => {
+      if (document.querySelectorAll(".test-row").length > 1) {
+        row.remove();
+      }
+    });
+    rows.appendChild(row);
+  }
+
+  document.getElementById("add-test").addEventListener("click", () => addTestRow());
+  addTestRow();
+  addTestRow();
+
+  function setCreateBanner(kind, message) {
+    const el2 = document.getElementById("create-banner");
+    if (!message) { el2.innerHTML = ""; return; }
+    el2.innerHTML = `<div class="banner err-${kind}">${escapeHtml(message)}</div>`;
+  }
+
+  function clearFieldError(inputEl, errTextEl) {
+    inputEl.classList.remove("field-error");
+    if (errTextEl) { errTextEl.hidden = true; errTextEl.textContent = ""; }
+  }
+
+  document.getElementById("create-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    setCreateBanner(null, null);
+
+    const nameInput = document.getElementById("run-name");
+    const nameErrorEl = document.getElementById("name-error");
+    clearFieldError(nameInput, nameErrorEl);
+
+    const name = nameInput.value.trim();
+    if (name.length < 1 || name.length > 40) {
+      nameInput.classList.add("field-error");
+      nameErrorEl.hidden = false;
+      nameErrorEl.textContent = "Name must be 1-40 characters.";
+      return;
+    }
+
+    const testInputs = Array.from(document.querySelectorAll(".test-input"));
+    const tests = testInputs.map((i) => i.value.trim()).filter((v) => v.length > 0);
+    if (tests.length < 1 || tests.length > 20) {
+      setCreateBanner("400", "Add between 1 and 20 tests.");
+      return;
+    }
+
+    const submitBtn = document.getElementById("create-submit");
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Creating…";
+
+    const { status, body } = await api("/api/runs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, tests }),
+    });
+
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Create run";
+
+    if (status === 201) {
+      nameInput.value = "";
+      document.getElementById("test-rows").innerHTML = "";
+      addTestRow();
+      addTestRow();
+      await loadRuns();
+      await selectRun(body.id);
+      return;
+    }
+
+    if (status === 400) {
+      setCreateBanner("400", (body && body.error) || "That run couldn't be created.");
+      return;
+    }
+
+    setCreateBanner("500", "Something went wrong on our end — try again.");
+  });
+
+  // ---------- Record result ----------
+
+  function renderRecordForm() {
+    const container = document.getElementById("record-body");
+    if (!state.selectedRun) {
+      container.innerHTML = `<p class="placeholder-note">Select or create a run first.</p>`;
+      return;
+    }
+
+    const resulted = state.knownResulted[state.selectedRunId] || new Set();
+    const tests = state.selectedRun.tests || [];
+
+    container.innerHTML = `
+      <div id="record-banner"></div>
+      <form id="record-form">
+        <label for="result-test">Test</label>
+        <select id="result-test">
+          ${tests.map((t) => `
+            <option value="${escapeHtml(t)}" ${resulted.has(t) ? "disabled" : ""}>
+              ${escapeHtml(t)}${resulted.has(t) ? " (recorded)" : ""}
+            </option>
+          `).join("")}
+        </select>
+
+        <label for="result-status">Status</label>
+        <select id="result-status">
+          <option value="pass">pass</option>
+          <option value="fail">fail</option>
+          <option value="skip">skip</option>
+        </select>
+
+        <label for="result-duration">Duration (ms)</label>
+        <input id="result-duration" type="number" min="0" step="1" value="0" />
+        <div id="duration-error" class="field-error-text" hidden></div>
+
+        <button type="submit" class="primary" id="record-submit">Record result</button>
+      </form>
+    `;
+
+    document.getElementById("record-form").addEventListener("submit", submitResult);
+  }
+
+  function setRecordBanner(kind, message) {
+    const el2 = document.getElementById("record-banner");
+    if (!el2) return;
+    if (!message) { el2.innerHTML = ""; return; }
+    el2.innerHTML = `<div class="banner err-${kind}">${escapeHtml(message)}</div>`;
+  }
+
+  async function submitResult(e) {
+    e.preventDefault();
+    setRecordBanner(null, null);
+
+    const durationInput = document.getElementById("result-duration");
+    const durationErrorEl = document.getElementById("duration-error");
+    clearFieldError(durationInput, durationErrorEl);
+
+    const test = document.getElementById("result-test").value;
+    const status = document.getElementById("result-status").value;
+    const durationRaw = durationInput.value;
+    const duration = Number(durationRaw);
+
+    if (durationRaw === "" || !Number.isInteger(duration) || duration < 0) {
+      durationInput.classList.add("field-error");
+      durationErrorEl.hidden = false;
+      durationErrorEl.textContent = "Duration must be a whole number, 0 or greater.";
+      return;
+    }
+
+    const submitBtn = document.getElementById("record-submit");
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Recording…";
+
+    const runId = state.selectedRunId;
+    const { status: httpStatus, body } = await api(`/api/runs/${runId}/results`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ test, status, duration_ms: duration }),
+    });
+
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Record result";
+
+    if (httpStatus === 200) {
+      if (!state.knownResulted[runId]) state.knownResulted[runId] = new Set();
+      state.knownResulted[runId].add(test);
+      durationInput.value = "0";
+      await loadRuns();
+      await loadSummary();
+      renderRecordForm();
+      return;
+    }
+
+    if (httpStatus === 404) {
+      state.summaryNotFound = true;
+      renderSummary();
+      return;
+    }
+
+    if (httpStatus === 400) {
+      setRecordBanner("400", (body && body.error) || "That result couldn't be recorded.");
+      return;
+    }
+
+    setRecordBanner("500", "Something went wrong on our end — try again.");
+  }
+
+  // ---------- Summary ----------
+
+  async function loadSummary() {
+    if (!state.selectedRunId) { state.summary = null; renderSummary(); return; }
+    const { status, body } = await api(`/api/runs/${state.selectedRunId}/summary`);
+    if (status === 200) {
+      state.summary = body;
+      state.summaryNotFound = false;
+    } else if (status === 404) {
+      state.summary = null;
+      state.summaryNotFound = true;
+    }
+    renderSummary();
+  }
+
+  function renderSummary() {
+    const container = document.getElementById("summary-body");
+
+    if (state.summaryNotFound) {
+      container.innerHTML = `
+        <div class="not-found-panel">
+          <p>This run wasn't found.</p>
+          <button class="secondary" id="back-to-list">Back to run list</button>
+        </div>
+      `;
+      document.getElementById("back-to-list").addEventListener("click", () => {
+        state.selectedRunId = null;
+        state.selectedRun = null;
+        state.summaryNotFound = false;
+        renderRunList();
+        renderRecordForm();
+        renderSummary();
+      });
+      return;
+    }
+
+    if (!state.summary) {
+      container.innerHTML = `<p class="placeholder-note">Select or create a run to see its summary.</p>`;
+      return;
+    }
+
+    const s = state.summary;
+    const pct = Math.round(s.pass_rate * 100);
+    const durationLabel = s.duration_ms >= 1000
+      ? `${(s.duration_ms / 1000).toFixed(1)}s total`
+      : `${s.duration_ms}ms total`;
+
+    container.innerHTML = `
+      <div class="summary-status status-${s.status}">${s.status}</div>
+      <div class="summary-counts">
+        <div><span class="n">${s.passed}</span><span class="l">Passed</span></div>
+        <div><span class="n">${s.failed}</span><span class="l">Failed</span></div>
+        <div><span class="n">${s.skipped}</span><span class="l">Skipped</span></div>
+      </div>
+      <div class="pass-rate-row">
+        <div class="pass-rate-value">${pct}%</div>
+        <div class="pass-rate-bar"><div class="pass-rate-fill" style="width:${pct}%"></div></div>
+      </div>
+      <div class="summary-duration">${durationLabel} · ${s.total} test${s.total === 1 ? "" : "s"}</div>
+    `;
+  }
+
+  // ---------- Init ----------
+
+  loadRuns();
+})();
+</script>
+</body>
+</html>
